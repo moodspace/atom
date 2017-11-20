@@ -176,7 +176,10 @@ class TextEditor {
     })
 
     const languageMode = this.buffer.getLanguageMode()
-    if (languageMode && languageMode.setTabLength) languageMode.setTabLength(tabLength)
+    this.languageModeSubscription = languageMode.onDidTokenize && languageMode.onDidTokenize(() => {
+      this.emitter.emit('did-tokenize')
+    })
+    this.disposables.add(this.languageModeSubscription)
 
     if (params.displayLayer) {
       this.displayLayer = params.displayLayer
@@ -3559,12 +3562,7 @@ class TextEditor {
 
   // Experimental: Get a notification when async tokenization is completed.
   onDidTokenize (callback) {
-    const languageMode = this.buffer.getLanguageMode()
-    if (languageMode.onDidTokenize) {
-      return this.buffer.getLanguageMode().onDidTokenize(callback)
-    } else {
-      return new Disposable(() => {})
-    }
+    return this.emitter.on('did-tokenize', callback)
   }
 
   /*
@@ -4121,7 +4119,16 @@ class TextEditor {
 
   handleLanguageModeChange () {
     this.unfoldAll()
-    this.emitter.emit('did-change-grammar', this.buffer.getLanguageMode().grammar)
+    if (this.languageModeSubscription) {
+      this.languageModeSubscription.dispose()
+      this.disposables.remove(this.languageModeSubscription)
+    }
+    const languageMode = this.buffer.getLanguageMode()
+    this.languageModeSubscription = languageMode.onDidTokenize && languageMode.onDidTokenize(() => {
+      this.emitter.emit('did-tokenize')
+    })
+    this.disposables.add(this.languageModeSubscription)
+    this.emitter.emit('did-change-grammar', languageMode.grammar)
   }
 
   /*
